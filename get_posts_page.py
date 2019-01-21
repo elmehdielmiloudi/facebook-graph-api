@@ -9,14 +9,13 @@ except ImportError:
 
 app_id = ""
 app_secret = ""  # DO NOT SHARE WITH ANYONE!
-page_id = "amfoss.in"
+page_id = "431851910256044"
 
 # input date formatted as YYYY-MM-DD
 since_date = "2018-01-01"
 until_date = "2018-12-31"
 
 access_token = app_id + "|" + app_secret
-
 
 def request_until_succeed(url):
     req = Request(url)
@@ -48,40 +47,9 @@ def getFacebookPageFeedUrl(base_url):
 
     # Construct the URL string; see http://stackoverflow.com/a/37239851 for
     # Reactions parameters
-    fields = "&fields=message,link,created_time,type,name,id," + \
-        "comments.limit(0).summary(true),shares,reactions" + \
-        ".limit(0).summary(true)"
+    fields = "&fields=posts.limit(10){message}"
 
     return base_url + fields
-
-
-def getReactionsForStatuses(base_url):
-
-    reaction_types = ['like', 'love', 'wow', 'haha', 'sad', 'angry']
-    reactions_dict = {}   # dict of {status_id: tuple<6>}
-
-    for reaction_type in reaction_types:
-        fields = "&fields=reactions.type({}).limit(0).summary(total_count)".format(
-            reaction_type.upper())
-
-        url = base_url + fields
-
-        data = json.loads(request_until_succeed(url))['data']
-
-        data_processed = set()  # set() removes rare duplicates in statuses
-        for status in data:
-            id = status['id']
-            count = status['reactions']['summary']['total_count']
-            data_processed.add((id, count))
-
-        for id, count in data_processed:
-            if id in reactions_dict:
-                reactions_dict[id] = reactions_dict[id] + (count,)
-            else:
-                reactions_dict[id] = (count,)
-
-    return reactions_dict
-
 
 def processFacebookPageFeedStatus(status):
 
@@ -113,15 +81,9 @@ def processFacebookPageFeedStatus(status):
 
     # Nested items require chaining dictionary keys.
 
-    num_reactions = 0 if 'reactions' not in status else \
-        status['reactions']['summary']['total_count']
-    num_comments = 0 if 'comments' not in status else \
-        status['comments']['summary']['total_count']
-    num_shares = 0 if 'shares' not in status else status['shares']['count']
 
     return (status_id, status_message, link_name, status_type, status_link,
-            status_published, num_reactions, num_comments, num_shares)
-
+            status_published)
 
 def scrapeFacebookPageFeedStatus(page_id, access_token, since_date, until_date):
     with open('{}_facebook_statuses.csv'.format(page_id), 'w') as file:
@@ -149,19 +111,9 @@ def scrapeFacebookPageFeedStatus(page_id, access_token, since_date, until_date):
 
             url = getFacebookPageFeedUrl(base_url)
             statuses = json.loads(request_until_succeed(url))
-            reactions = getReactionsForStatuses(base_url)
 
-            for status in statuses['data']:
-
-                # Ensure it is a status with the expected metadata
-                if 'reactions' in status:
-                    status_data = processFacebookPageFeedStatus(status)
-                    reactions_data = reactions[status_data[0]]
-
-                    # calculate thankful/pride through algebra
-                    num_special = status_data[6] - sum(reactions_data)
-                    w.writerow(status_data + reactions_data + (num_special,))
-
+            for status in statuses["posts"]["data"]:
+                print(status,"\n")
                 num_processed += 1
                 if num_processed % 100 == 0:
                     print("{} Statuses Processed: {}".format
